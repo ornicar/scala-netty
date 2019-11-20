@@ -1,15 +1,20 @@
 import io.netty.channel._
 import io.netty.channel.socket.SocketChannel
-import io.netty.handler.codec.http.{ HttpObjectAggregator, HttpServerCodec }
 import io.netty.handler.codec.http._
+import io.netty.handler.codec.http.{ HttpObjectAggregator, HttpServerCodec }
 import io.netty.handler.codec.TooLongFrameException
 import java.io.IOException
 // import io.netty.handler.codec.http.websocketx.extensions.compression.WebSocketServerCompressionHandler
+import akka.actor.typed.{ ActorRef, ActorSystem, Behavior }
 import com.typesafe.scalalogging.Logger
 import io.netty.handler.codec.http.websocketx.WebSocketServerProtocolHandler
 import io.netty.handler.ssl.SslContext
+import io.netty.util.concurrent.{ Future, GenericFutureListener }
 
-class WebSocketServerInitializer(sslCtx: Option[SslContext]) extends ChannelInitializer[SocketChannel] {
+class WebSocketServerInitializer(
+    clients: ActorRef[Clients.Control],
+    sslCtx: Option[SslContext]
+) extends ChannelInitializer[SocketChannel] {
 
   private val logger = Logger(getClass)
 
@@ -32,7 +37,11 @@ class WebSocketServerInitializer(sslCtx: Option[SslContext]) extends ChannelInit
     ) {
       override def userEventTriggered(ctx: ChannelHandlerContext, evt: java.lang.Object): Unit = evt match {
         case hs: WebSocketServerProtocolHandler.HandshakeComplete =>
-          println(s"${hs.requestUri} ${hs.requestHeaders}")
+          clients ! Clients.Start(ctx.channel)
+          ctx.channel.closeFuture.addListener(new GenericFutureListener[Future[Void]] {
+            def operationComplete(f: Future[Void]): Unit =
+              clients ! Clients.Stop(ctx.channel.id.asShortText)
+          })
         case evt => ctx fireUserEventTriggered evt
       }
       override def exceptionCaught(ctx: ChannelHandlerContext, cause: Throwable): Unit = {
@@ -61,6 +70,6 @@ class WebSocketServerInitializer(sslCtx: Option[SslContext]) extends ChannelInit
         f
       }
     })
-    pipeline.addLast(new WebSocketFrameHandler())
+    pipeline.addLast(new WebSocketFrameHandler(clients))
   }
 }
