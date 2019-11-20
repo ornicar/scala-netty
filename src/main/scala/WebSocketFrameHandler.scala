@@ -10,6 +10,7 @@ class WebSocketFrameHandler(clients: ActorRef[Clients.Control]) extends SimpleCh
 
   override protected def channelRead0(ctx: ChannelHandlerContext, frame: WebSocketFrame) = frame match {
     case frame: TextWebSocketFrame =>
+      // clients ! Clients.Out(ctx.channel.id.asShortText, frame.text())
       ctx.channel.attr(Clients.attrKey).get ! Client.Out(frame.text())
       // ctx.channel.writeAndFlush(new TextWebSocketFrame(frame.text().reverse))
     case frame =>

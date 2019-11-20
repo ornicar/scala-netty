@@ -58,7 +58,9 @@ object Client {
 
   def start(channel: Channel): Behavior[Msg] = Behaviors.setup { ctx =>
 
-    apply(msg => channel.writeAndFlush(new TextWebSocketFrame(msg)))
+    val emit: String => Unit = msg => channel.writeAndFlush(new TextWebSocketFrame(msg))
+
+    apply(emit)
   }
 
   def apply(clientIn: String => Unit): Behavior[Msg] = Behaviors.receive { (ctx, msg) =>
@@ -78,7 +80,7 @@ object Clients {
   sealed trait Control
   final case class Start(channel: Channel) extends Control
   final case class Stop(id: ChannelId) extends Control
-  final case class Out(id: ChannelId, msg: String) extends Control
+  // final case class Out(id: ChannelId, msg: String) extends Control
 
   def start: Behavior[Control] = Behaviors.setup { ctx =>
     apply(Map.empty[ChannelId, ActorRef[Client.Msg]])
@@ -87,12 +89,12 @@ object Clients {
   def apply(clients: Map[ChannelId, ActorRef[Client.Msg]]): Behavior[Control] =
     Behaviors.receive[Control] { (ctx, msg) =>
       msg match {
-        case Out(id, msg) =>
-          clients get id match {
-            case None => ctx.log.info(s"Message sent to missing client: $msg")
-            case Some(client) => client ! Client.Out(msg)
-          }
-          Behaviors.same
+        // case Out(id, msg) =>
+        //   clients get id match {
+        //     case None => ctx.log.info(s"Message sent to missing client: $msg")
+        //     case Some(client) => client ! Client.Out(msg)
+        //   }
+        //   Behaviors.same
         case Start(channel) =>
           val id = channel.id.asShortText
           val client = ctx.spawn(Client.start(channel), id)
